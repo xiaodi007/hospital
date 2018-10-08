@@ -22,13 +22,13 @@ patient_data <- patient_index_data %>%
 
 #CysC GFR
 CysC_GFR_plot <- patient_data %>% 
-  select(CysC, GFR) %>% 
+  select(CysC, GFR, GFR_CLASS) %>% 
   filter(is.na(CysC) != TRUE, is.na(GFR) != TRUE)
 
-ggplot(CysC_GFR_plot, aes(CysC, GFR)) + 
+ggplot(CysC_GFR_plot, aes(CysC, GFR, colour = GFR_CLASS)) + 
   geom_point() + 
-xlim(0, 50) + ylim(0, 150)+
-geom_smooth()
+xlim(0, 20) + ylim(0, 150)+
+geom_smooth(aes(CysC, GFR))
 
 
 

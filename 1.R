@@ -1,6 +1,7 @@
 library(dplyr)
 library(readr)
 library(ggplot2)
+
 patient_index_data <- read_csv("./hospital.csv")
 
 
@@ -27,7 +28,7 @@ CysC_GFR_plot <- patient_data %>%
 
 ggplot(CysC_GFR_plot, aes(CysC, GFR, colour = GFR_CLASS)) + 
   geom_point() + 
-xlim(0, 20) + ylim(0, 150)+
+xlim(0, 20) + ylim(0, 150) +
 geom_smooth(aes(CysC, GFR))
 
 

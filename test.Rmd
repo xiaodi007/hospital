@@ -1,0 +1,121 @@
+---
+title: "Hospital"
+author: "xiaodi"
+date: "2018年10月15日"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(digits = 2)
+```
+
+```{r, include=FALSE, warning=FALSE}
+library(dplyr)
+library(readr)
+library(ggplot2)
+library(readr)
+library(knitr)
+library(purrr)
+paper_search <- read_csv("paper_search.csv", 
+                         col_types = cols(id_index = col_character(), 
+                                          id_index_1 = col_character()))
+# 体重身高有异常值手动修改
+Data <- paper_search %>% 
+  filter(CysC < 50,
+         CRE > 2 ) %>% 
+  select(-c(id_index_1)) %>% 
+  mutate(bmi = weight / (height ^ 2)) %>% 
+  mutate(Y_CLASS = case_when(
+    ACR >= 300            ~ "大量白蛋白尿组",
+    ACR >= 30 & ACR < 300 ~ "微量白蛋白尿组",
+    ACR <  30             ~ "正常白蛋白尿组",
+    TRUE                  ~ "未知"
+  )) %>% 
+  mutate(ageEffect = if_else(gender == '男', 1, 0.742)) %>% 
+  mutate(GFR =  30849 * (CRE^(-1.154)) * (age^(-0.203)) * ageEffect) %>% 
+  mutate(GFR_CLASS = case_when(
+    GFR >= 90 ~ "正常",
+    GFR >= 60 & GFR <90 ~ "轻度下降",
+    GFR >= 30 & GFR <60 ~ "中度下降",
+    GFR >= 15 & GFR <30 ~ "重度下降",
+    GFR <15             ~ "肾衰竭",
+    TRUE                ~ "未知"
+    
+  ))
+print(names(Data))
+```
+
+
+```{r, include=FALSE, warning=FALSE}
+#患者总人数
+patient_num <- as.character(Data %>% summarise(num = n()))
+
+#患者男女人数
+patient_sex_num <- Data %>% group_by(gender) %>% summarise(num = n())
+
+#患者年龄跨度
+patient_age_range <- Data %>% summarise(max = max(age), min = min(age))
+
+#患者年龄均值95%置信区间
+
+patient_age_mean <- as.numeric(t.test(Data$age)$estimate)
+patient_age_range_conf <- patient_age_mean - as.numeric(t.test(Data$age)$conf.int)[1]
+
+
+#患者病程跨度
+patient_courseofdiabetes_range <- Data %>% summarise(max = max(courseofdiabetes), min = min(courseofdiabetes))
+
+#患者病程均值95%置信区间
+patient_courseofdiabetes_mean <- as.numeric(t.test(Data$courseofdiabetes)$estimate)
+patient_courseofdiabetes_range_conf <- patient_courseofdiabetes_mean - as.numeric(t.test(Data$courseofdiabetes)$conf.int)[1]
+
+#患者BMI跨度
+patient_BMI_range <- Data %>% summarise(max = max(bmi), min = min(bmi))
+
+#患者BMI均值95%置信区间
+patient_BMI_mean <- as.numeric(t.test(Data$bmi)$estimate)
+patient_BMI_range_conf <- patient_BMI_mean - as.numeric(t.test(Data$bmi)$conf.int)[1]
+print(patient_BMI_mean)
+
+# 各组有多少人
+Y_CLASS_num <- Data %>% group_by(Y_CLASS) %>% summarise(num = n())
+
+```
+
+##初步统计资料
+1、肾内科住院部收治的2 型糖尿病患者(`r patient_num`)例，其中男 `r patient_sex_num$num[1]`
+ 例，女 `r patient_sex_num$num[2]` 例，年龄`r patient_age_range$min`-`r patient_age_range$max` 岁，平均 (`r patient_age_mean`± `r patient_age_range_conf`) 岁；病程 `r patient_courseofdiabetes_range$min`-`r patient_courseofdiabetes_range$max` 年，平均 (`r patient_courseofdiabetes_mean`± `r patient_courseofdiabetes_range_conf`)  年;BMI `r patient_BMI_range$min`-`r patient_BMI_range$max`，平均 (`r patient_BMI_mean`± `r patient_BMI_range_conf`)。按照尿白蛋白排泄量不同，分为正常白蛋白尿组尿白蛋白/肌酐0-30 (`r Y_CLASS_num$num[3]`)例，微量白蛋白尿组：尿白蛋白/肌酐30-300 mg/gCre（`r Y_CLASS_num$num[2]`）例，大量白蛋白尿组：尿白蛋白/肌酐>=300 mg/gCre（`r Y_CLASS_num$num[1]`）例。
+
+
+2、可比性：性别（男/女）、年龄、病程、BMI
+男女比例 2：1 差别较大
+年龄27-85 跨度较大
+病程0-40 也大 同理IBM 不推荐做可比性分析
+
+3、各组以下指标x±s
+```{r, echo=FALSE}
+T.test <- function(Data, Class, Col){
+  DATA <- Data %>% filter(Y_CLASS == Class) %>% as.data.frame(.) %>% .[, quo_name(Col)]
+  print(t.test(DATA))
+  
+  data.frame(mean = t.test(DATA)$estimate,
+             conf = t.test(DATA)$estimate - as.numeric(t.test(DATA)$conf.int)[1], row.names = NULL)
+  
+}
+Y_CLASS_name <- distinct(Data, Y_CLASS) %>% mutate(num = 1)
+select_name <- tibble(name = c('CysC', 'UREA', 'CRE', 'ACR'), num=1)
+
+index_combie <- Y_CLASS_name %>% left_join(select_name, by = c("num"))
+for (i in nrow(index_combie)) {
+  
+}
+group_index <- Data %>% 
+  as.data.frame(Data) %>% 
+  split(.$Y_CLASS) %>%
+  map(t.test(.CysC))
+  
+kable(group_index)
+```
+
+

@@ -1,0 +1,565 @@
+---
+title: "Hospital"
+author: "xiaodi"
+date: "2018年10月15日"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(digits = 2)
+```
+
+```{r, include=FALSE, warning=FALSE}
+library(dplyr)
+library(readr)
+library(ggplot2)
+library(readr)
+library(knitr)
+library(purrr)
+library(tidyr)
+paper_search <- read_csv("paper_search.csv", 
+                         col_types = cols(id_index = col_character(), 
+                                          id_index_1 = col_character()))
+# 体重身高有异常值手动修改
+Data <- paper_search %>% 
+  filter(CysC < 50,
+         CRE > 2 ) %>% 
+  select(-c(id_index_1)) %>% 
+  mutate(bmi = weight / (height ^ 2)) %>% 
+  mutate(Y_CLASS = case_when(
+    ACR >= 300            ~ "大量白蛋白尿组",
+    ACR >= 30 & ACR < 300 ~ "微量白蛋白尿组",
+    ACR <  30             ~ "正常白蛋白尿组",
+    TRUE                  ~ "未知"
+  )) %>% 
+  mutate(ageEffect = if_else(gender == '男', 1, 0.742)) %>% 
+  mutate(GFR =  30849 * (CRE^(-1.154)) * (age^(-0.203)) * ageEffect) %>% 
+  mutate(GFR_CLASS = case_when(
+    GFR >= 90 ~ "正常",
+    GFR >= 60 & GFR <90 ~ "轻度下降",
+    GFR >= 30 & GFR <60 ~ "中度下降",
+    GFR >= 15 & GFR <30 ~ "重度下降",
+    GFR <15             ~ "肾衰竭",
+    TRUE                ~ "未知"
+    
+  ))
+print(names(Data))
+```
+
+
+```{r, include=FALSE, warning=FALSE}
+#患者总人数
+patient_num <- as.character(Data %>% summarise(num = n()))
+
+#患者男女人数
+patient_sex_num <- Data %>% group_by(gender) %>% summarise(num = n())
+
+#患者年龄跨度
+patient_age_range <- Data %>% summarise(max = max(age), min = min(age))
+
+#患者年龄均值95%置信区间
+
+patient_age_mean <- as.numeric(t.test(Data$age)$estimate)
+patient_age_range_conf <- patient_age_mean - as.numeric(t.test(Data$age)$conf.int)[1]
+
+
+#患者病程跨度
+patient_courseofdiabetes_range <- Data %>% summarise(max = max(courseofdiabetes), min = min(courseofdiabetes))
+
+#患者病程均值95%置信区间
+patient_courseofdiabetes_mean <- as.numeric(t.test(Data$courseofdiabetes)$estimate)
+patient_courseofdiabetes_range_conf <- patient_courseofdiabetes_mean - as.numeric(t.test(Data$courseofdiabetes)$conf.int)[1]
+
+#患者BMI跨度
+patient_BMI_range <- Data %>% summarise(max = max(bmi), min = min(bmi))
+
+#患者BMI均值95%置信区间
+patient_BMI_mean <- as.numeric(t.test(Data$bmi)$estimate)
+patient_BMI_range_conf <- patient_BMI_mean - as.numeric(t.test(Data$bmi)$conf.int)[1]
+print(patient_BMI_mean)
+
+# 各组有多少人
+Y_CLASS_num <- Data %>% group_by(Y_CLASS) %>% summarise(num = n())
+
+```
+
+##初步统计资料
+1、肾内科住院部收治的2 型糖尿病患者(`r patient_num`)例，其中男 `r patient_sex_num$num[1]`
+ 例，女 `r patient_sex_num$num[2]` 例，年龄`r patient_age_range$min`-`r patient_age_range$max` 岁，平均 (`r patient_age_mean`± `r patient_age_range_conf`) 岁；病程 `r patient_courseofdiabetes_range$min`-`r patient_courseofdiabetes_range$max` 年，平均 (`r patient_courseofdiabetes_mean`± `r patient_courseofdiabetes_range_conf`)  年;BMI `r patient_BMI_range$min`-`r patient_BMI_range$max`，平均 (`r patient_BMI_mean`± `r patient_BMI_range_conf`)。按照尿白蛋白排泄量不同，分为正常白蛋白尿组尿白蛋白/肌酐0-30 (`r Y_CLASS_num$num[3]`)例，微量白蛋白尿组：尿白蛋白/肌酐30-300 mg/gCre（`r Y_CLASS_num$num[2]`）例，大量白蛋白尿组：尿白蛋白/肌酐>=300 mg/gCre（`r Y_CLASS_num$num[1]`）例。
+
+
+2、可比性：性别（男/女）、年龄、病程、BMI
+男女比例 2：1 差别较大
+年龄27-85 跨度较大
+病程0-40 也大 同理IBM 不推荐做可比性分析
+
+3、各组以下指标x±s
+
+UREA为BUN CRE为scr 
+```{r, echo=FALSE}
+T.test <- function(DaTa, Class, Col){
+  DATA <- DaTa %>% filter(Y_CLASS == Class) %>% as.data.frame(.) %>% .[, quo_name(Col)]
+  
+  data.frame(
+             y_class = Class,
+             index = Col,
+             mean = t.test(DATA)$estimate,
+             conf = t.test(DATA)$estimate - as.numeric(t.test(DATA)$conf.int)[1], 
+             row.names = NULL)
+  
+}
+Y_CLASS_name <- distinct(Data, Y_CLASS) %>% mutate(num = 1)
+select_name <- tibble(name = c('CysC', 'UREA', 'CRE', 'GFR'), num=1)
+
+index_combie <- Y_CLASS_name %>% left_join(select_name, by = c("num"))
+newdata <- data.frame()
+for (i in 1:nrow(index_combie)) {
+  TTest <- T.test(DaTa = Data, 
+                  Class = as.character(index_combie[i, 'Y_CLASS']), 
+                  Col = as.character(index_combie[i, 'name']))
+  newdata <- rbind(newdata, TTest)
+}
+newdata1 <- newdata %>% 
+  mutate(rs = sprintf('%.2f±%.2f', mean, conf)) %>% 
+  select(index, y_class, rs) %>% 
+  spread(y_class, rs) %>% 
+  select(index, '正常白蛋白尿组', '微量白蛋白尿组', '大量白蛋白尿组')
+kable(newdata1, format = "pandoc", caption = '各指标平均值')
+```
+
+```{r, include=FALSE}
+
+TT.test <- function(DaTa, group1, group2, Col){
+  Group1 <- DaTa %>% filter(Y_CLASS == group1) %>% as.data.frame(.) %>% .[, quo_name(Col)]
+  Group2 <- DaTa %>% filter(Y_CLASS == group2) %>% as.data.frame(.) %>% .[, quo_name(Col)]
+  data.frame(class1 = group1,
+             class2 = group2,
+             Col = Col,
+             pvalue = t.test(Group1, Group2)$p.value, 
+             row.names = NULL)
+
+}
+
+Y_CLASS_name <- distinct(Data, Y_CLASS) %>% mutate(num = 1)
+group12 <- Y_CLASS_name %>% 
+  left_join(Y_CLASS_name,  by = c("num"))
+select_name <- tibble(name = c('CysC', 'UREA', 'CRE', 'GFR'), num=1)
+
+index_combie1 <- group12 %>% left_join(select_name, by = c("num"))
+
+newdata1 <- data.frame()
+for (i in 1:nrow(index_combie1)) {
+  TTTest <- TT.test(DaTa = Data, 
+                  group1 = as.character(index_combie1[i, 'Y_CLASS.x']), 
+                  group2 = as.character(index_combie1[i, 'Y_CLASS.y']), 
+                  Col = as.character(index_combie1[i, 'name']))
+  newdata1 <- rbind(newdata1, TTTest)
+}
+```
+
+## 各组指标均值T检验
+
+
+```{r, echo=FALSE}
+#CysC T.test
+CysCdata <- newdata1 %>%
+  filter(Col == 'CysC') %>% 
+  mutate(class1 = as.character(class1),
+         class2 = as.character(class2),
+         pvalue = as.character(pvalue)) %>%
+  select(-Col) %>% 
+  spread(class2, pvalue)
+kable(CysCdata, caption = 'CysC 各组T检验')
+```
+
+
+
+```{r, echo=FALSE}
+
+#UREA T.test
+UREAdata <- newdata1 %>%
+  filter(Col == 'UREA') %>% 
+  mutate(class1 = as.character(class1),
+         class2 = as.character(class2),
+         pvalue = as.character(pvalue)) %>%
+  select(-Col) %>% 
+  spread(class2, pvalue)
+kable(UREAdata, caption = 'BUN 各组T检验')
+```
+
+
+
+```{r, echo=FALSE}
+
+#CRE T.test
+CREdata <- newdata1 %>%
+  filter(Col == 'CRE') %>% 
+  mutate(class1 = as.character(class1),
+         class2 = as.character(class2),
+         pvalue = as.character(pvalue)) %>%
+  select(-Col) %>% 
+  spread(class2, pvalue)
+kable(CREdata, caption = 'scr 各组T检验')
+```
+
+
+
+```{r, echo=FALSE}
+
+#GFR T.test
+GFRdata <- newdata1 %>%
+  filter(Col == 'GFR') %>% 
+  mutate(class1 = as.character(class1),
+         class2 = as.character(class2),
+         pvalue = as.character(pvalue)) %>%
+  select(-Col) %>% 
+  spread(class2, pvalue)
+kable(GFRdata, caption = 'GFR 各组T检验')
+```
+
+*例子*
+
+比如大量白蛋白尿组与微量白蛋白尿组GFR p—value为7.27501731703214e-05，是科学计数法。转换为0.000072...，小于0.05，具有统计学意义。说明
+大量白蛋白尿组与微量白蛋白尿组的GFR显著有差异。
+
+组内指标不具有比较性
+
+## 各组指标阳性率T检验
+
+
+```{r, echo=FALSE}
+Data_positive <- Data %>% 
+  mutate(CysC = if_else(CysC > 1.02, 1, 0),
+         UREA = if_else(UREA > 8, 1, 0),
+         CRE = if_else(CRE > 97, 1, 0),
+         GFR = if_else(GFR < 90, 1, 0))
+
+
+TTT.test <- function(DaTa, group1, group2, Col){
+  Name <- c('CysC', 'UREA', 'CRE', 'GFR')
+  VALUE <- c(1.02, 8, 97, 90)
+
+  Value <- VALUE[which(Name == Col)]
+
+  Group1 <- DaTa %>% filter(Y_CLASS == group1) %>% 
+    as.data.frame(.) %>% .[, Col]
+  Group2 <- DaTa %>% filter(Y_CLASS == group2) %>%
+    as.data.frame(.) %>% .[, Col]
+  
+  data.frame(class1 = group1,
+             class2 = group2,
+             Col = Col,
+             pvalue = t.test(Group1, Group2)$p.value, 
+             row.names = NULL)
+
+}
+
+Y_CLASS_name <- distinct(Data, Y_CLASS) %>% mutate(num = 1)
+group12 <- Y_CLASS_name %>% 
+  left_join(Y_CLASS_name,  by = c("num"))
+select_name <- tibble(name = c('CysC', 'UREA', 'CRE', 'GFR'), num=1)
+
+index_combie1 <- group12 %>% left_join(select_name, by = c("num"))
+
+newdata11 <- data.frame()
+for (i in 1:nrow(index_combie1)) {
+  if(index_combie1[i, 'Y_CLASS.x'] != index_combie1[i, 'Y_CLASS.y']){
+  TTTTest <- TTT.test(DaTa = Data_positive, 
+                  group1 = as.character(index_combie1[i, 'Y_CLASS.x']), 
+                  group2 = as.character(index_combie1[i, 'Y_CLASS.y']), 
+                  Col = as.character(index_combie1[i, 'name']))
+  newdata11 <- rbind(newdata11, TTTTest)
+  }
+}
+
+
+```
+
+
+```{r, echo=FALSE}
+Positive_index <- Data_positive %>% 
+  group_by(Y_CLASS) %>% 
+  summarise(
+            CysC_n = sum(CysC),
+            CysC_t = n(),
+            CysC_P = sum(CysC) / n(),
+            BUN_n = sum(UREA),
+            BUN_t = n(),
+            BUN_P = sum(UREA) / n(),
+            SCR_n = sum(CRE),
+            SCR_t = n(),
+            SCR_P = sum(CRE) / n(),
+            GFR_n = sum(GFR),
+            GFR_t = n(),
+            GFR_P = sum(GFR) / n()) %>% 
+  ungroup()
+
+kable(Positive_index, caption = '各组阳性率')
+```
+
+_n为阳性的人， _t为总人数， _p为阳性率
+
+
+```{r, echo=FALSE}
+
+#CysC T.test
+CysCdata_p <- newdata11 %>%
+  filter(Col == 'CysC') %>% 
+  mutate(class1 = as.character(class1),
+         class2 = as.character(class2),
+         pvalue = as.character(pvalue)) %>%
+  select(-Col) %>% 
+  spread(class2, pvalue)
+kable(CysCdata_p, caption = 'CysC 各组阳性率T检验')
+
+```
+
+```{r, echo=FALSE}
+#UREA T.test
+UREAdata_p <- newdata11 %>%
+  filter(Col == 'UREA') %>% 
+  mutate(class1 = as.character(class1),
+         class2 = as.character(class2),
+         pvalue = as.character(pvalue)) %>%
+  select(-Col) %>% 
+  spread(class2, pvalue)
+kable(UREAdata_p, caption = 'BUN 各组阳性率T检验')
+```
+
+```{r, echo=FALSE}
+#CRE T.test
+CREdata_p <- newdata11 %>%
+  filter(Col == 'CRE') %>% 
+  mutate(class1 = as.character(class1),
+         class2 = as.character(class2),
+         pvalue = as.character(pvalue)) %>%
+  select(-Col) %>% 
+  spread(class2, pvalue)
+kable(CREdata_p, caption = 'scr 各组阳性率T检验')
+```
+
+```{r, echo=FALSE}
+#GFR T.test
+GFRdata_p <- newdata11 %>%
+  filter(Col == 'GFR') %>% 
+  mutate(class1 = as.character(class1),
+         class2 = as.character(class2),
+         pvalue = as.character(pvalue)) %>%
+  select(-Col) %>% 
+  spread(class2, pvalue)
+kable(GFRdata_p, caption = 'GFR 各组阳性率T检验')
+```
+
+*例子*
+
+比如大量白蛋白尿组与微量白蛋白尿组GFR 阳性率 p—value为0.0751261956937107，大于0.05，不具有统计学意义。说明
+大量白蛋白尿组与微量白蛋白尿组的GFR阳性率没有显著有差异。
+
+## Cys-c与尿白蛋白/肌酐关系（拐点全部数据）
+
+
+```{r, echo=FALSE}
+#Cys-c与尿白蛋白/肌酐关系
+ACR_CysC_plot <- Data %>% 
+  # filter(Y_CLASS=='大量白蛋白尿组') %>% 
+  select(ACR, CysC)
+
+ggplot(ACR_CysC_plot, aes(ACR, CysC)) + 
+  geom_point() + 
+  geom_smooth( method = "lm", formula = y~I(x^2) + x) + 
+   ggtitle('Cys-c与尿白蛋白/肌酐关系')
+  
+
+AC_lm <- lm(ACR~I(CysC^2) + CysC, data = ACR_CysC_plot)
+summary(AC_lm)
+```
+
+
+模型函数为 
+
+$$ ACR = 50.3+1461.2*CysC-106.3*CysC^2$$
+
+R方为0.154，模型效果较差。CysCP值小于0.05具有统计学意义，CysC^2小于0.05具有统计学意义。
+
+## Cys-c与尿白蛋白/肌酐关系（拐点 只含大量白蛋白尿组）
+
+```{r, echo=FALSE}
+#Cys-c与尿白蛋白/肌酐关系
+ACR_CysC_plot <- Data %>% 
+  filter(Y_CLASS=='大量白蛋白尿组') %>%
+  select(ACR, CysC)
+
+ggplot(ACR_CysC_plot, aes(ACR, CysC)) + 
+  geom_point() + 
+  geom_smooth( method = "lm", formula = y~I(x^2) + x) + 
+   ggtitle('Cys-c与尿白蛋白/肌酐关系')
+  
+
+AC_lm <- lm(ACR~I(CysC^2) + CysC, data = ACR_CysC_plot)
+summary(AC_lm)
+```
+
+R方为0.0769，模型效果比全部数据建模效果更不明显
+
+## 同组中各指标间阳性率T检验
+
+```{r, echo=FALSE, warning=FALSE, include=FALSE}
+
+
+
+TTTT.test <- function(DaTa, group1, Col1, Col2){
+
+
+
+
+  Group1 <- DaTa %>% filter(Y_CLASS == group1) %>% 
+    as.data.frame(.) %>% .[, Col1]
+  Group2 <- DaTa %>% filter(Y_CLASS == group1) %>%
+    as.data.frame(.) %>% .[, Col2]
+  
+  data.frame(class = group1,
+             Col1 = Col1,
+             Col2 = Col2,
+             pvalue = t.test(Group1, Group2)$p.value, 
+             row.names = NULL)
+
+}
+
+Y_CLASS_name <- distinct(Data, Y_CLASS) %>% mutate(num = 1)
+group12 <- Y_CLASS_name 
+select_name1 <- tibble(name1 = c('CysC', 'UREA', 'CRE', 'GFR'), num=1)
+select_name2 <- tibble(name2 = c('CysC', 'UREA', 'CRE', 'GFR'), num=1)
+select_name <- select_name1 %>% left_join(select_name2) %>% 
+  filter(name1 != name2)
+
+index_combie1 <- group12 %>% 
+  left_join(select_name, by = c("num"))
+
+
+
+newdata111 <- data.frame()
+for (i in 1:nrow(index_combie1)) {
+
+  TTTTTest <- TTTT.test(DaTa = Data_positive, 
+                  group = as.character(index_combie1[i, 'Y_CLASS']), 
+                  Col1 = as.character(index_combie1[i, 'name1']), 
+                  Col2 = as.character(index_combie1[i, 'name2']))
+  newdata111 <- rbind(newdata111, TTTTTest)
+
+}
+
+
+```
+
+```{r, echo=FALSE}
+#正常白蛋白尿组各指标间 T.test
+Normaldata_p <- newdata111 %>%
+  filter(class == '正常白蛋白尿组') %>% 
+  mutate(Col1 = as.character(Col1),
+         Col2 = as.character(Col2),
+         pvalue = as.character(pvalue)) %>%
+  select(-class) %>% 
+  spread(Col2, pvalue)
+kable(Normaldata_p, caption = '正常白蛋白尿组各指标间T检验')
+```
+
+```{r, echo=FALSE}
+#微量白蛋白尿组各指标间 T.test
+Normaldata_p <- newdata111 %>%
+  filter(class == '微量白蛋白尿组') %>% 
+  mutate(Col1 = as.character(Col1),
+         Col2 = as.character(Col2),
+         pvalue = as.character(pvalue)) %>%
+  select(-class) %>% 
+  spread(Col2, pvalue)
+kable(Normaldata_p, caption = '微量白蛋白尿组各指标间T检验')
+```
+
+```{r, echo=FALSE}
+#大量白蛋白尿组各指标间 T.test
+Bigdata_p <- newdata111 %>%
+  filter(class == '大量白蛋白尿组') %>% 
+  mutate(Col1 = as.character(Col1),
+         Col2 = as.character(Col2),
+         pvalue = as.character(pvalue)) %>%
+  select(-class) %>% 
+  spread(Col2, pvalue)
+kable(Bigdata_p, caption = '大量白蛋白尿组各指标间T检验')
+```
+
+
+## 同组中各指标间阳性率T检验(合并正常与微量)
+
+
+```{r, echo=FALSE}
+Data_positive_combine <- Data_positive %>% 
+    mutate(Y_CLASS = if_else(Y_CLASS=='正常白蛋白尿组', '微量白蛋白尿组', Y_CLASS))
+Positive_index_combine <- Data_positive_combine %>% 
+  group_by(Y_CLASS) %>% 
+  summarise(
+            CysC_n = sum(CysC),
+            CysC_t = n(),
+            CysC_P = sum(CysC) / n(),
+            BUN_n = sum(UREA),
+            BUN_t = n(),
+            BUN_P = sum(UREA) / n(),
+            SCR_n = sum(CRE),
+            SCR_t = n(),
+            SCR_P = sum(CRE) / n(),
+            GFR_n = sum(GFR),
+            GFR_t = n(),
+            GFR_P = sum(GFR) / n()) %>% 
+  ungroup()
+
+kable(Positive_index_combine, caption = '合并各组阳性率')
+```
+
+```{r, echo=FALSE, include=FALSE}
+Y_CLASS_name <- distinct(Data_positive_combine, Y_CLASS) %>% mutate(num = 1)
+group12 <- Y_CLASS_name 
+select_name1 <- tibble(name1 = c('CysC', 'UREA', 'CRE', 'GFR'), num=1)
+select_name2 <- tibble(name2 = c('CysC', 'UREA', 'CRE', 'GFR'), num=1)
+select_name <- select_name1 %>% left_join(select_name2) %>% 
+  filter(name1 != name2)
+
+index_combie1 <- group12 %>% 
+  left_join(select_name, by = c("num"))
+
+
+
+newdata1111 <- data.frame()
+for (i in 1:nrow(index_combie1)) {
+
+  TTTTTTest <- TTTT.test(DaTa = Data_positive_combine, 
+                  group = as.character(index_combie1[i, 'Y_CLASS']), 
+                  Col1 = as.character(index_combie1[i, 'name1']), 
+                  Col2 = as.character(index_combie1[i, 'name2']))
+  newdata1111 <- rbind(newdata1111, TTTTTTest)
+
+}
+```
+
+```{r, echo=FALSE}
+#微量白蛋白尿组各指标间 T.test
+Normaldata_p_com <- newdata1111 %>%
+  filter(class == '微量白蛋白尿组') %>% 
+  mutate(Col1 = as.character(Col1),
+         Col2 = as.character(Col2),
+         pvalue = as.character(pvalue)) %>%
+  select(-class) %>% 
+  spread(Col2, pvalue)
+kable(Normaldata_p_com, caption = '微量白蛋白尿组各指标间T检验(合并)')
+```
+
+```{r, echo=FALSE}
+#大量白蛋白尿组各指标间 T.test
+Bigdata_p_com <- newdata1111 %>%
+  filter(class == '大量白蛋白尿组') %>% 
+  mutate(Col1 = as.character(Col1),
+         Col2 = as.character(Col2),
+         pvalue = as.character(pvalue)) %>%
+  select(-class) %>% 
+  spread(Col2, pvalue)
+kable(Bigdata_p_com, caption = '大量白蛋白尿组各指标间T检验(合并)')
+```

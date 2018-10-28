@@ -1,0 +1,430 @@
+---
+title: "resach1"
+author: "xiaodi"
+date: "2018年10月28日"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(digits = 2)
+```
+
+```{r, include=FALSE, warning=FALSE}
+library(dplyr)
+library(readr)
+library(ggplot2)
+library(readr)
+library(knitr)
+library(purrr)
+library(tidyr)
+paper_search <- read_csv("paper_search.csv", 
+                         col_types = cols(id_index = col_character(), 
+                                          id_index_1 = col_character()))
+# 体重身高有异常值手动修改
+Data <- paper_search %>% 
+  filter(CysC < 50,
+         CRE > 2 ) %>% 
+  select(-c(id_index_1)) %>% 
+  mutate(bmi = weight / (height ^ 2)) %>% 
+  mutate(Y_CLASS = case_when(
+    ACR >= 300            ~ "大量白蛋白尿组",
+    ACR >= 30 & ACR < 300 ~ "微量白蛋白尿组",
+    ACR <  30             ~ "正常白蛋白尿组",
+    TRUE                  ~ "未知"
+  )) %>% 
+  distinct(id_index, be_admission_time, .keep_all = TRUE) %>% 
+  filter(Y_CLASS == "大量白蛋白尿组") %>% 
+  mutate(ageEffect = if_else(gender == '男', 1, 0.742)) %>% 
+  mutate(GFR =  30849 * (CRE^(-1.154)) * (age^(-0.203)) * ageEffect) %>% 
+  mutate(GFR_CLASS = case_when(
+    GFR >= 90 ~ "正常",
+    GFR >= 60 & GFR <90 ~ "轻度下降",
+    GFR >= 30 & GFR <60 ~ "中度下降",
+    GFR >= 15 & GFR <30 ~ "重度下降",
+    GFR <15             ~ "肾衰竭",
+    TRUE                ~ "未知"
+    
+  ))
+print(names(Data))
+```
+
+
+```{r, include=FALSE, warning=FALSE}
+#患者总人数
+patient_num <- as.character(Data %>% summarise(num = n()))
+
+#患者男女人数
+patient_sex_num <- Data %>% group_by(gender) %>% summarise(num = n())
+
+#患者年龄跨度
+patient_age_range <- Data %>% summarise(max = max(age), min = min(age))
+
+#患者年龄均值95%置信区间
+
+patient_age_mean <- as.numeric(t.test(Data$age)$estimate)
+patient_age_range_conf <- patient_age_mean - as.numeric(t.test(Data$age)$conf.int)[1]
+
+
+#患者病程跨度
+patient_courseofdiabetes_range <- Data %>% summarise(max = max(courseofdiabetes), min = min(courseofdiabetes))
+
+#患者病程均值95%置信区间
+patient_courseofdiabetes_mean <- as.numeric(t.test(Data$courseofdiabetes)$estimate)
+patient_courseofdiabetes_range_conf <- patient_courseofdiabetes_mean - as.numeric(t.test(Data$courseofdiabetes)$conf.int)[1]
+
+#患者BMI跨度
+patient_BMI_range <- Data %>% summarise(max = max(bmi), min = min(bmi))
+
+#患者BMI均值95%置信区间
+patient_BMI_mean <- as.numeric(t.test(Data$bmi)$estimate)
+patient_BMI_range_conf <- patient_BMI_mean - as.numeric(t.test(Data$bmi)$conf.int)[1]
+print(patient_BMI_mean)
+
+# 各组有多少人
+Y_CLASS_num <- Data %>% group_by(GFR_CLASS) %>% summarise(num = n())
+
+```
+
+## 1、初步统计资料
+1、肾内科住院部收治的2 型糖尿病患者(`r patient_num`)例，其中男 `r patient_sex_num$num[1]`
+ 例，女 `r patient_sex_num$num[2]` 例，年龄`r patient_age_range$min`-`r patient_age_range$max` 岁，平均 (`r patient_age_mean`± `r patient_age_range_conf`) 岁；病程 `r patient_courseofdiabetes_range$min`-`r patient_courseofdiabetes_range$max` 年，平均 (`r patient_courseofdiabetes_mean`± `r patient_courseofdiabetes_range_conf`)  年;BMI `r patient_BMI_range$min`-`r patient_BMI_range$max`，平均 (`r patient_BMI_mean`± `r patient_BMI_range_conf`)。
+按eGFR[ml/(min·1 .73 m2)]分为:≥90,60-89,30-59,15-29,<15 分组,其中：
+
+≥90（`r Y_CLASS_num$num[3]`）例。
+60-89（`r Y_CLASS_num$num[1]`）例。
+30-59（`r Y_CLASS_num$num[4]`）例,
+15-29（`r Y_CLASS_num$num[5]`）例，
+<15 （`r Y_CLASS_num$num[2]`）例，
+
+
+## 2、可比性：性别（男/女）、年龄、病程、BMI
+
+
++ 性别
+
+
+```{r, echo=FALSE}
+#性别
+genderdata <- Data %>%
+  group_by(GFR_CLASS, gender) %>% 
+  summarise(num = n()) %>% 
+  spread(GFR_CLASS, num) %>% 
+  select(gender, '正常', '轻度下降', '中度下降', '重度下降', '肾衰竭')
+kable(genderdata, caption = '各组男女人数分布')
+```
+
+
++ 年龄
+
+
+```{r, echo=FALSE}
+#年龄
+agedata <- Data %>%
+  group_by(GFR_CLASS) %>% 
+  summarise(max = max(age), 
+            upper = quantile(age, 0.75),
+            median = median(age),
+            mean = mean(age),
+            lower = quantile(age, 0.25),
+            min = min(age)
+            ) %>% 
+  ungroup() %>% 
+  gather(key = type, value = value, max, upper, median, mean, lower, min) %>% 
+  spread(type, value)
+  # select(type, '正常', '轻度下降', '中度下降', '重度下降', '肾衰竭')
+
+kable(agedata, caption = '年龄分布')
+```
+
+min为最小值，lower为下四分位， median为中位数， mean为均值， upper为上四分位， max为最大值
+
+
++ 病程
+
+
+```{r, echo=FALSE}
+#病程
+coursedata <- Data %>%
+  group_by(GFR_CLASS) %>% 
+  summarise(max = max(courseofdiabetes), 
+            upper = quantile(courseofdiabetes, 0.75),
+            median = median(courseofdiabetes),
+            mean = mean(courseofdiabetes),
+            lower = quantile(courseofdiabetes, 0.25),
+            min = min(courseofdiabetes)
+            ) %>% 
+  ungroup() %>% 
+  gather(key = type, value = value, max, upper, median, mean, lower, min) %>% 
+  spread(type, value)
+  # select(type, '正常', '轻度下降', '中度下降', '重度下降', '肾衰竭')
+
+kable(coursedata, caption = '病程分布')
+```
+
++ BMI
+
+```{r, echo=FALSE}
+#BMI
+BMIdata <- Data %>%
+  group_by(GFR_CLASS) %>% 
+  summarise(max = max(bmi), 
+            upper = quantile(bmi, 0.75),
+            median = median(bmi),
+            mean = mean(bmi),
+            lower = quantile(bmi, 0.25),
+            min = min(bmi)
+            ) %>% 
+  ungroup() %>% 
+  gather(key = type, value = value, max, upper, median, mean, lower, min) %>% 
+  spread(type, value)
+  # select(type, '正常', '轻度下降', '中度下降', '重度下降', '肾衰竭')
+
+kable(BMIdata, caption = 'BMI分布')
+```
+
+
+## 3、各组以下指标x±s
+
+UREA为BUN CRE为scr 
+```{r, echo=FALSE}
+T.test <- function(DaTa, Class, Col){
+  DATA <- DaTa %>% filter(GFR_CLASS == Class) %>% as.data.frame(.) %>% .[, quo_name(Col)]
+  
+  data.frame(
+             y_class = Class,
+             index = Col,
+             mean = t.test(DATA)$estimate,
+             conf = t.test(DATA)$estimate - as.numeric(t.test(DATA)$conf.int)[1], 
+             row.names = NULL)
+  
+}
+Y_CLASS_name <- distinct(Data, GFR_CLASS) %>% mutate(num = 1)
+select_name <- tibble(name = c('CysC', 'UREA', 'CRE', 'ACR'), num=1)
+
+index_combie <- Y_CLASS_name %>% left_join(select_name, by = c("num"))
+newdata <- data.frame()
+for (i in 1:nrow(index_combie)) {
+  TTest <- T.test(DaTa = Data, 
+                  Class = as.character(index_combie[i, 'GFR_CLASS']), 
+                  Col = as.character(index_combie[i, 'name']))
+  newdata <- rbind(newdata, TTest)
+}
+newdata1 <- newdata %>% 
+  mutate(rs = sprintf('%.2f±%.2f', mean, conf)) %>% 
+  select(index, y_class, rs) %>% 
+  spread(y_class, rs) %>% 
+  select(index,  '正常', '轻度下降', '中度下降', '重度下降', '肾衰竭')
+kable(newdata1, format = "pandoc", caption = '各指标平均值')
+```
+
+## 4、各组指标与ACR相关关系
+
+* 正常组
+
+    + CysC与ACR
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+nomal_data <- Data %>% 
+  filter(GFR_CLASS == '正常')
+
+nomal_CysC_ACR_plot <- nomal_data %>% 
+  select(CysC, ACR)
+
+ggplot(nomal_CysC_ACR_plot, aes(CysC, ACR)) + 
+  geom_point() + geom_smooth() + 
+   ggtitle('正常组_CysC与ACR')
+```
+
+   + UREA与ACR
+    
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+nomal_UREA_ACR_plot <- nomal_data %>% 
+  select(UREA, ACR)
+
+ggplot(nomal_UREA_ACR_plot, aes(UREA, ACR)) + 
+  geom_point() + geom_smooth() + 
+   ggtitle('正常组_UREA与ACR')
+```
+
+
+  + CRE与ACR
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+nomal_CRE_ACR_plot <- nomal_data %>% 
+  select(CRE, ACR)
+
+ggplot(nomal_CRE_ACR_plot, aes(CRE, ACR)) + 
+  geom_point() + geom_smooth() + 
+   ggtitle('正常组_CRE与ACR')
+```
+
+
+
+* 轻度下降
+
+    + CysC与ACR
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+little_data <- Data %>% 
+  filter(GFR_CLASS == '轻度下降')
+
+little_CysC_ACR_plot <- little_data %>% 
+  select(CysC, ACR)
+
+ggplot(little_CysC_ACR_plot, aes(CysC, ACR)) + 
+  geom_point() + geom_smooth() + 
+   ggtitle('轻度下降组_CysC与ACR')
+```
+
+   + UREA与ACR
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+little_UREA_ACR_plot <- little_data %>% 
+  select(UREA, ACR)
+
+ggplot(little_UREA_ACR_plot, aes(UREA, ACR)) + 
+  geom_point() + geom_smooth() + 
+   ggtitle('轻度下降组_UREA与ACR')
+```
+
+  + CRE与ACR
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+little_CRE_ACR_plot <- little_data %>% 
+  select(CRE, ACR)
+
+ggplot(little_CRE_ACR_plot, aes(CRE, ACR)) + 
+  geom_point() + geom_smooth() + 
+   ggtitle('轻度下降组_CRE与ACR')
+```
+
+
+* 中度下降
+
+    + CysC与ACR
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+median_data <- Data %>% 
+  filter(GFR_CLASS == '中度下降')
+
+median_CysC_ACR_plot <- median_data %>% 
+  select(CysC, ACR)
+
+ggplot(median_CysC_ACR_plot, aes(CysC, ACR)) + 
+  geom_point() + geom_smooth() + 
+   ggtitle('中度下降组_CysC与ACR')
+```
+
+   + UREA与ACR
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+median_UREA_ACR_plot <- median_data %>% 
+  select(UREA, ACR)
+
+ggplot(median_UREA_ACR_plot, aes(UREA, ACR)) + 
+  geom_point() + geom_smooth() + 
+   ggtitle('中度下降组_UREA与ACR')
+```
+
+  + CRE与ACR
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+median_CRE_ACR_plot <- median_data %>% 
+  select(CRE, ACR)
+
+ggplot(median_CRE_ACR_plot, aes(CRE, ACR)) + 
+  geom_point() + geom_smooth() + 
+   ggtitle('中度下降组_CRE与ACR')
+```
+
+
+
+* 重度下降
+
+    + CysC与ACR
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+heavy_data <- Data %>% 
+  filter(GFR_CLASS == '重度下降')
+
+heavy_CysC_ACR_plot <- heavy_data %>% 
+  select(CysC, ACR)
+
+ggplot(heavy_CysC_ACR_plot, aes(CysC, ACR)) + 
+  geom_point() + geom_smooth() + 
+   ggtitle('重度下降组_CysC与ACR')
+```
+
+   + UREA与ACR
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+heavy_UREA_ACR_plot <- heavy_data %>% 
+  select(UREA, ACR)
+
+ggplot(heavy_UREA_ACR_plot, aes(UREA, ACR)) + 
+  geom_point() + geom_smooth() + 
+   ggtitle('重度下降组_UREA与ACR')
+```
+
+  + CRE与ACR
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+heavy_CRE_ACR_plot <- heavy_data %>% 
+  select(CRE, ACR)
+
+ggplot(heavy_CRE_ACR_plot, aes(CRE, ACR)) + 
+  geom_point() + geom_smooth() + 
+   ggtitle('重度下降组_CRE与ACR')
+```
+
+
+* 肾衰竭
+
+    + CysC与ACR
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+end_data <- Data %>% 
+  filter(GFR_CLASS == '肾衰竭')
+
+end_CysC_ACR_plot <- end_data %>% 
+  select(CysC, ACR)
+
+ggplot(end_CysC_ACR_plot, aes(CysC, ACR)) + 
+  geom_point() + geom_smooth() + 
+   ggtitle('肾衰竭组_CysC与ACR')
+```
+
+   + UREA与ACR
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+end_UREA_ACR_plot <- end_data %>% 
+  select(UREA, ACR)
+
+ggplot(end_UREA_ACR_plot, aes(UREA, ACR)) + 
+  geom_point() + geom_smooth() + 
+   ggtitle('肾衰竭组_UREA与ACR')
+```
+
+  + CRE与ACR
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+end_CRE_ACR_plot <- end_data %>% 
+  select(CRE, ACR)
+
+ggplot(end_CRE_ACR_plot, aes(CRE, ACR)) + 
+  geom_point() + geom_smooth() + 
+   ggtitle('肾衰竭组_CRE与ACR')
+```

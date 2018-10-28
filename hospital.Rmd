@@ -494,7 +494,7 @@ kable(Bigdata_p, caption = '大量白蛋白尿组各指标间T检验')
 
 ```{r, echo=FALSE}
 Data_positive_combine <- Data_positive %>% 
-    mutate(Y_CLASS = if_else(Y_CLASS=='正常白蛋白尿组', '微量白蛋白尿组', Y_CLASS))
+    mutate(Y_CLASS = if_else(Y_CLASS=='微量白蛋白尿组', '大量白蛋白尿组', Y_CLASS))
 Positive_index_combine <- Data_positive_combine %>% 
   group_by(Y_CLASS) %>% 
   summarise(
@@ -541,15 +541,15 @@ for (i in 1:nrow(index_combie1)) {
 ```
 
 ```{r, echo=FALSE}
-#微量白蛋白尿组各指标间 T.test
+#正常白蛋白尿组各指标间 T.test
 Normaldata_p_com <- newdata1111 %>%
-  filter(class == '微量白蛋白尿组') %>% 
+  filter(class == '正常白蛋白尿组') %>% 
   mutate(Col1 = as.character(Col1),
          Col2 = as.character(Col2),
          pvalue = as.character(pvalue)) %>%
   select(-class) %>% 
   spread(Col2, pvalue)
-kable(Normaldata_p_com, caption = '微量白蛋白尿组各指标间T检验(合并)')
+kable(Normaldata_p_com, caption = '正常白蛋白尿组各指标间T检验(合并)')
 ```
 
 ```{r, echo=FALSE}

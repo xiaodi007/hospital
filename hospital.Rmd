@@ -402,7 +402,7 @@ summary(AC_lm)
 
 R方为0.0769，模型效果比全部数据建模效果更不明显
 
-## 同组中各指标间阳性率T检验
+## 同组中各指标间阳性率卡方检验
 
 ```{r, echo=FALSE, warning=FALSE, include=FALSE}
 
@@ -418,10 +418,21 @@ TTTT.test <- function(DaTa, group1, Col1, Col2){
   Group2 <- DaTa %>% filter(Y_CLASS == group1) %>%
     as.data.frame(.) %>% .[, Col2]
   
+  Group1_sum <- sum(Group1)
+  Group1_0 <- length(Group1) - Group1_sum
+  
+  Group2_sum <- sum(Group2)
+  Group2_0 <- length(Group2) - Group2_sum
+  
+  Matrix10 <- matrix(c(Group1_sum,
+                       Group2_sum,
+                       Group1_0,
+                       Group2_0), nrow = 2, ncol = 2)
+  
   data.frame(class = group1,
              Col1 = Col1,
              Col2 = Col2,
-             pvalue = t.test(Group1, Group2)$p.value, 
+             pvalue = chisq.test(Matrix10)$p.value, 
              row.names = NULL)
 
 }
@@ -461,7 +472,7 @@ Normaldata_p <- newdata111 %>%
          pvalue = as.character(pvalue)) %>%
   select(-class) %>% 
   spread(Col2, pvalue)
-kable(Normaldata_p, caption = '正常白蛋白尿组各指标间T检验')
+kable(Normaldata_p, caption = '正常白蛋白尿组各指标间卡方检验')
 ```
 
 ```{r, echo=FALSE}
@@ -473,7 +484,7 @@ Normaldata_p <- newdata111 %>%
          pvalue = as.character(pvalue)) %>%
   select(-class) %>% 
   spread(Col2, pvalue)
-kable(Normaldata_p, caption = '微量白蛋白尿组各指标间T检验')
+kable(Normaldata_p, caption = '微量白蛋白尿组各指标间卡方检验')
 ```
 
 ```{r, echo=FALSE}
@@ -485,11 +496,11 @@ Bigdata_p <- newdata111 %>%
          pvalue = as.character(pvalue)) %>%
   select(-class) %>% 
   spread(Col2, pvalue)
-kable(Bigdata_p, caption = '大量白蛋白尿组各指标间T检验')
+kable(Bigdata_p, caption = '大量白蛋白尿组各指标间卡方检验')
 ```
 
 
-## 同组中各指标间阳性率T检验(合并正常与微量)
+## 同组中各指标间阳性率卡方检验(合并大量与微量)
 
 
 ```{r, echo=FALSE}
@@ -549,7 +560,7 @@ Normaldata_p_com <- newdata1111 %>%
          pvalue = as.character(pvalue)) %>%
   select(-class) %>% 
   spread(Col2, pvalue)
-kable(Normaldata_p_com, caption = '正常白蛋白尿组各指标间T检验(合并)')
+kable(Normaldata_p_com, caption = '正常白蛋白尿组各指标间卡方检验(合并)')
 ```
 
 ```{r, echo=FALSE}
@@ -561,5 +572,5 @@ Bigdata_p_com <- newdata1111 %>%
          pvalue = as.character(pvalue)) %>%
   select(-class) %>% 
   spread(Col2, pvalue)
-kable(Bigdata_p_com, caption = '大量白蛋白尿组各指标间T检验(合并)')
+kable(Bigdata_p_com, caption = '大量白蛋白尿组各指标间卡方检验(合并)')
 ```

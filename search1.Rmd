@@ -37,15 +37,50 @@ Data <- paper_search %>%
   filter(Y_CLASS == "大量白蛋白尿组") %>% 
   mutate(ageEffect = if_else(gender == '男', 1, 0.742)) %>% 
   mutate(GFR =  30849 * (CRE^(-1.154)) * (age^(-0.203)) * ageEffect) %>% 
-  mutate(GFR_CLASS = case_when(
-    GFR >= 90 ~ "正常",
+  mutate(
+    GFR_CLASS = case_when(
+    GFR >= 90           ~ "正常",
     GFR >= 60 & GFR <90 ~ "轻度下降",
     GFR >= 30 & GFR <60 ~ "中度下降",
     GFR >= 15 & GFR <30 ~ "重度下降",
     GFR <15             ~ "肾衰竭",
     TRUE                ~ "未知"
-    
-  ))
+  ),
+    GFR_CLASS_ARR = case_when(
+    GFR >= 90           ~ 1,
+    GFR >= 60 & GFR <90 ~ 2,
+    GFR >= 30 & GFR <60 ~ 3,
+    GFR >= 15 & GFR <30 ~ 4,
+    GFR <15             ~ 5,
+    TRUE                ~ 0
+  ),
+  #   AGE_CLASS = case_when(
+  #   age >= 90            ~ '长寿老年人',
+  #   age >= 75 & age < 90 ~ '老人',
+  #   age >= 60 & age < 75 ~ '老人前期',
+  #   age >= 45 & age < 60 ~ '中年',
+  #   age <  45            ~ '青年',
+  #   TRUE                 ~ '未知'
+  # )
+      AGE_CLASS = case_when(
+    age >= 80            ~ '80以上',
+    age >= 70 & age < 80 ~ '70-80',
+    age >= 60 & age < 70 ~ '60-70',
+    age >= 50 & age < 60 ~ '50-60',
+    age >= 40 & age < 50 ~ '40-50',
+    # age >= 30 & age < 40 ~ '30-40',
+    age >= 20 & age < 40 ~ '20-40',
+    age <  20            ~ '20以下',
+    TRUE                 ~ '未知'
+  ),
+  BMI_CLASS = case_when(
+    bmi >= 28            ~ "肥胖",
+    bmi >= 24 & bmi < 28 ~ "超重BMI",
+    bmi >= 18.5 & bmi < 24 ~ "健康体重",
+    bmi <  18.5             ~ "轻体重",
+    TRUE                  ~ "未知"
+  )
+  )
 print(names(Data))
 ```
 
@@ -107,12 +142,17 @@ Y_CLASS_num <- Data %>% group_by(GFR_CLASS) %>% summarise(num = n())
 ```{r, echo=FALSE}
 #性别
 genderdata <- Data %>%
-  group_by(GFR_CLASS, gender) %>% 
+  group_by(GFR_CLASS, GFR_CLASS_ARR, gender) %>% 
   summarise(num = n()) %>% 
-  spread(GFR_CLASS, num) %>% 
-  select(gender, '正常', '轻度下降', '中度下降', '重度下降', '肾衰竭')
+  ungroup() %>% 
+  spread(gender, num) %>% 
+  arrange(GFR_CLASS_ARR) %>% 
+  select(-GFR_CLASS_ARR)
+  # select(gender, '正常', '轻度下降', '中度下降', '重度下降', '肾衰竭')
 kable(genderdata, caption = '各组男女人数分布')
 ```
+
+在不同ACR水平下男女的人数。根据数据看，在不同ACR水平下还是男的人数占大部分
 
 
 + 年龄
@@ -121,7 +161,7 @@ kable(genderdata, caption = '各组男女人数分布')
 ```{r, echo=FALSE}
 #年龄
 agedata <- Data %>%
-  group_by(GFR_CLASS) %>% 
+  group_by(GFR_CLASS, GFR_CLASS_ARR) %>% 
   summarise(max = max(age), 
             upper = quantile(age, 0.75),
             median = median(age),
@@ -131,7 +171,9 @@ agedata <- Data %>%
             ) %>% 
   ungroup() %>% 
   gather(key = type, value = value, max, upper, median, mean, lower, min) %>% 
-  spread(type, value)
+  spread(type, value) %>% 
+  arrange(GFR_CLASS_ARR) %>% 
+  select(-GFR_CLASS_ARR)
   # select(type, '正常', '轻度下降', '中度下降', '重度下降', '肾衰竭')
 
 kable(agedata, caption = '年龄分布')
@@ -139,6 +181,11 @@ kable(agedata, caption = '年龄分布')
 
 min为最小值，lower为下四分位， median为中位数， mean为均值， upper为上四分位， max为最大值
 
+例如：
+正常组 年龄最小为31岁，最大值57岁， 平均数47岁，中位数为48岁， 下四分位（等于该样本中所有数值由小到大排列后第25%的数字）为42，
+上四分位（等于该样本中所有数值由小到大排列后第75%的数字）为52，
+
+每组中年龄还是有较大差异，不建议做可比性
 
 + 病程
 
@@ -146,7 +193,7 @@ min为最小值，lower为下四分位， median为中位数， mean为均值，
 ```{r, echo=FALSE}
 #病程
 coursedata <- Data %>%
-  group_by(GFR_CLASS) %>% 
+  group_by(GFR_CLASS, GFR_CLASS_ARR) %>% 
   summarise(max = max(courseofdiabetes), 
             upper = quantile(courseofdiabetes, 0.75),
             median = median(courseofdiabetes),
@@ -156,7 +203,9 @@ coursedata <- Data %>%
             ) %>% 
   ungroup() %>% 
   gather(key = type, value = value, max, upper, median, mean, lower, min) %>% 
-  spread(type, value)
+  spread(type, value) %>% 
+  arrange(GFR_CLASS_ARR) %>% 
+  select(-GFR_CLASS_ARR)
   # select(type, '正常', '轻度下降', '中度下降', '重度下降', '肾衰竭')
 
 kable(coursedata, caption = '病程分布')
@@ -167,7 +216,7 @@ kable(coursedata, caption = '病程分布')
 ```{r, echo=FALSE}
 #BMI
 BMIdata <- Data %>%
-  group_by(GFR_CLASS) %>% 
+  group_by(GFR_CLASS, GFR_CLASS_ARR) %>% 
   summarise(max = max(bmi), 
             upper = quantile(bmi, 0.75),
             median = median(bmi),
@@ -177,7 +226,9 @@ BMIdata <- Data %>%
             ) %>% 
   ungroup() %>% 
   gather(key = type, value = value, max, upper, median, mean, lower, min) %>% 
-  spread(type, value)
+  spread(type, value) %>% 
+  arrange(GFR_CLASS_ARR) %>% 
+  select(-GFR_CLASS_ARR)
   # select(type, '正常', '轻度下降', '中度下降', '重度下降', '肾衰竭')
 
 kable(BMIdata, caption = 'BMI分布')
@@ -218,213 +269,322 @@ newdata1 <- newdata %>%
 kable(newdata1, format = "pandoc", caption = '各指标平均值')
 ```
 
+随着GFR的下降，各项指标都是呈现上升的趋势
+
+
 ## 4、各组指标与ACR相关关系
+### 总体
 
-* 正常组
+#### CysC与ACR+GFR各组
 
-    + CysC与ACR
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+
+total_CysC_ACR_plot <- Data %>% 
+  select(CysC, ACR, BMI_CLASS, GFR_CLASS)
+
+ggplot(total_CysC_ACR_plot, aes(CysC, ACR, colour = GFR_CLASS)) + 
+  geom_point() + # + geom_smooth()
+  ggtitle('总体_CysC与ACR+GFR_CLASS') +
+  scale_colour_discrete(limits=c('正常', '轻度下降', '中度下降', '重度下降', '肾衰竭'))
+```
+
+从CysC与ACR的散点图可以看出，CysC能有效区分GFR水平，但却与ACR无明显关系，随着CysC增加，能看出GFR下降，但ACR却忽高忽低。
+
+#### CysC与ACR加年龄分段+BMI分段
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+
+total_CysC_ACR_plot <- Data %>% 
+  select(CysC, ACR, BMI_CLASS, AGE_CLASS)
+
+ggplot(total_CysC_ACR_plot, aes(CysC, ACR, colour = BMI_CLASS, shape=AGE_CLASS)) + 
+  geom_point() + # + geom_smooth()
+  ggtitle('总体_CysC与ACR+AGE_CLASS+BMI_CLASS')  
+  # scale_colour_discrete(limits=c('正常', '轻度下降', '中度下降', '重度下降', '肾衰竭'))
+```
+
+加入年龄分段以及BMI分段，想要识别ACR升高却CysC较低的人群。看图关系也不是很明显
+
+
+#### UREA与ACR+GFR各组
+    
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+total_UREA_ACR_plot <- Data %>% 
+  select(UREA, ACR, GFR_CLASS)
+
+ggplot(total_UREA_ACR_plot, aes(UREA, ACR, colour = GFR_CLASS)) + 
+  geom_point() + 
+  ggtitle('总体_UREA与ACR') + 
+  scale_colour_discrete(limits=c('正常', '轻度下降', '中度下降', '重度下降', '肾衰竭'))
+```
+
+同时在UREA与ACR中，也看得出UREA与GFR的明显关系，随着UREA升高，GFR是下降的。却没有CysC在轻度与中度的区分度好。但在UREA与ACR的关系上，在UREA处于较低水平时，部分ACR已经上升很高。 在UREA处于较高水平时，ACR却是较低的。
+
+
+#### UREA与ACR加年龄分段+BMI分段
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+
+total_UREA_ACR_plot <- Data %>% 
+  select(UREA, ACR, BMI_CLASS, AGE_CLASS)
+
+ggplot(total_UREA_ACR_plot, aes(UREA, ACR, colour = BMI_CLASS, shape=AGE_CLASS)) + 
+  geom_point() + # + geom_smooth()
+  ggtitle('总体_UREA与ACR+AGE_CLASS+BMI_CLASS')  
+  # scale_colour_discrete(limits=c('正常', '轻度下降', '中度下降', '重度下降', '肾衰竭'))
+```
+
+尝试用年龄以及BMI去区分在UREA较低和较高时的异常值，却并不能找到导致这种原因的特定人群，或还存在未关注到的分类指标，能很好划分特殊人群。
+
+
+#### CRE与ACR+GFR各组
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+total_CRE_ACR_plot <- Data %>% 
+  select(CRE, ACR, GFR_CLASS)
+
+ggplot(total_CRE_ACR_plot, aes(CRE, ACR, colour = GFR_CLASS)) + 
+  geom_point() + 
+  ggtitle('总体_CRE与ACR') + 
+  scale_colour_discrete(limits=c('正常', '轻度下降', '中度下降', '重度下降', '肾衰竭'))
+```
+
+CRE在重度以及肾衰竭有着较好区分度，ACR与CRE没有明显关系
+
+#### CRE与ACR加年龄分段+BMI分段
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+
+total_CRE_ACR_plot <- Data %>% 
+  select(CRE, ACR, BMI_CLASS, AGE_CLASS)
+
+ggplot(total_CRE_ACR_plot, aes(CRE, ACR, colour = BMI_CLASS, shape=AGE_CLASS)) + 
+  geom_point() + # + geom_smooth()
+  ggtitle('总体_CRE与ACR+AGE_CLASS+BMI_CLASS')
+```
+
+
+
+### 正常组
+
+#### CysC与ACR
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 nomal_data <- Data %>% 
   filter(GFR_CLASS == '正常')
 
 nomal_CysC_ACR_plot <- nomal_data %>% 
-  select(CysC, ACR)
+  select(CysC, ACR, BMI_CLASS, AGE_CLASS)
 
-ggplot(nomal_CysC_ACR_plot, aes(CysC, ACR)) + 
-  geom_point() + geom_smooth() + 
+ggplot(nomal_CysC_ACR_plot, aes(CysC, ACR, colour = BMI_CLASS, shape=AGE_CLASS)) + 
+  geom_point() + # + geom_smooth()
    ggtitle('正常组_CysC与ACR')
 ```
 
-   + UREA与ACR
+在正常组中，ACR异常的均为体重异常的
+
+
+#### UREA与ACR
     
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 
 nomal_UREA_ACR_plot <- nomal_data %>% 
-  select(UREA, ACR)
+  select(UREA, ACR, BMI_CLASS, AGE_CLASS)
 
-ggplot(nomal_UREA_ACR_plot, aes(UREA, ACR)) + 
-  geom_point() + geom_smooth() + 
+ggplot(nomal_UREA_ACR_plot, aes(UREA, ACR, colour = BMI_CLASS, shape=AGE_CLASS)) + 
+  geom_point() + 
    ggtitle('正常组_UREA与ACR')
 ```
 
 
-  + CRE与ACR
+#### CRE与ACR
 
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 
 nomal_CRE_ACR_plot <- nomal_data %>% 
-  select(CRE, ACR)
+  select(CRE, ACR, BMI_CLASS, AGE_CLASS)
 
-ggplot(nomal_CRE_ACR_plot, aes(CRE, ACR)) + 
-  geom_point() + geom_smooth() + 
+ggplot(nomal_CRE_ACR_plot, aes(CRE, ACR, colour = BMI_CLASS, shape=AGE_CLASS)) + 
+  geom_point() + 
    ggtitle('正常组_CRE与ACR')
 ```
 
 
 
-* 轻度下降
+### 轻度下降
 
-    + CysC与ACR
+#### CysC与ACR
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 little_data <- Data %>% 
   filter(GFR_CLASS == '轻度下降')
 
 little_CysC_ACR_plot <- little_data %>% 
-  select(CysC, ACR)
+  select(CysC, ACR, BMI_CLASS, AGE_CLASS)
 
-ggplot(little_CysC_ACR_plot, aes(CysC, ACR)) + 
-  geom_point() + geom_smooth() + 
+ggplot(little_CysC_ACR_plot, aes(CysC, ACR, colour = BMI_CLASS, shape=AGE_CLASS)) + 
+  geom_point() + 
    ggtitle('轻度下降组_CysC与ACR')
 ```
 
-   + UREA与ACR
+#### UREA与ACR
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 
 little_UREA_ACR_plot <- little_data %>% 
-  select(UREA, ACR)
+  select(UREA, ACR, BMI_CLASS, AGE_CLASS)
 
-ggplot(little_UREA_ACR_plot, aes(UREA, ACR)) + 
-  geom_point() + geom_smooth() + 
+ggplot(little_UREA_ACR_plot, aes(UREA, ACR, colour = BMI_CLASS, shape=AGE_CLASS)) + 
+  geom_point() + 
    ggtitle('轻度下降组_UREA与ACR')
 ```
 
-  + CRE与ACR
+#### CRE与ACR
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 
 little_CRE_ACR_plot <- little_data %>% 
-  select(CRE, ACR)
+  select(CRE, ACR, BMI_CLASS, AGE_CLASS)
 
-ggplot(little_CRE_ACR_plot, aes(CRE, ACR)) + 
-  geom_point() + geom_smooth() + 
+ggplot(little_CRE_ACR_plot, aes(CRE, ACR, colour = BMI_CLASS, shape=AGE_CLASS)) + 
+  geom_point()+ 
    ggtitle('轻度下降组_CRE与ACR')
 ```
 
 
-* 中度下降
+### 中度下降
 
-    + CysC与ACR
+#### CysC与ACR
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 median_data <- Data %>% 
   filter(GFR_CLASS == '中度下降')
 
 median_CysC_ACR_plot <- median_data %>% 
-  select(CysC, ACR)
+  select(CysC, ACR, BMI_CLASS, AGE_CLASS)
 
-ggplot(median_CysC_ACR_plot, aes(CysC, ACR)) + 
-  geom_point() + geom_smooth() + 
+ggplot(median_CysC_ACR_plot, aes(CysC, ACR, colour = BMI_CLASS, shape=AGE_CLASS)) + 
+  geom_point()+ 
    ggtitle('中度下降组_CysC与ACR')
 ```
 
-   + UREA与ACR
+
+#### UREA与ACR
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 
 median_UREA_ACR_plot <- median_data %>% 
-  select(UREA, ACR)
+  select(UREA, ACR, BMI_CLASS, AGE_CLASS)
 
-ggplot(median_UREA_ACR_plot, aes(UREA, ACR)) + 
-  geom_point() + geom_smooth() + 
+ggplot(median_UREA_ACR_plot, aes(UREA, ACR, colour = BMI_CLASS, shape=AGE_CLASS)) + 
+  geom_point()+ 
    ggtitle('中度下降组_UREA与ACR')
 ```
 
-  + CRE与ACR
+#### CRE与ACR
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 
 median_CRE_ACR_plot <- median_data %>% 
-  select(CRE, ACR)
+  select(CRE, ACR, BMI_CLASS, AGE_CLASS)
 
-ggplot(median_CRE_ACR_plot, aes(CRE, ACR)) + 
-  geom_point() + geom_smooth() + 
+ggplot(median_CRE_ACR_plot, aes(CRE, ACR, colour = BMI_CLASS, shape=AGE_CLASS)) + 
+  geom_point()+ 
    ggtitle('中度下降组_CRE与ACR')
 ```
 
 
 
-* 重度下降
+### 重度下降
 
-    + CysC与ACR
+#### CysC与ACR
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 heavy_data <- Data %>% 
   filter(GFR_CLASS == '重度下降')
 
 heavy_CysC_ACR_plot <- heavy_data %>% 
-  select(CysC, ACR)
+  select(CysC, ACR, BMI_CLASS, AGE_CLASS)
 
-ggplot(heavy_CysC_ACR_plot, aes(CysC, ACR)) + 
-  geom_point() + geom_smooth() + 
+ggplot(heavy_CysC_ACR_plot, aes(CysC, ACR, colour = BMI_CLASS, shape=AGE_CLASS)) + 
+  geom_point()+ 
    ggtitle('重度下降组_CysC与ACR')
 ```
 
-   + UREA与ACR
+#### UREA与ACR
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 
 heavy_UREA_ACR_plot <- heavy_data %>% 
-  select(UREA, ACR)
+  select(UREA, ACR, BMI_CLASS, AGE_CLASS)
 
-ggplot(heavy_UREA_ACR_plot, aes(UREA, ACR)) + 
-  geom_point() + geom_smooth() + 
+ggplot(heavy_UREA_ACR_plot, aes(UREA, ACR, colour = BMI_CLASS, shape=AGE_CLASS)) + 
+  geom_point()+ 
    ggtitle('重度下降组_UREA与ACR')
 ```
 
-  + CRE与ACR
+#### CRE与ACR
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 
 heavy_CRE_ACR_plot <- heavy_data %>% 
-  select(CRE, ACR)
+  select(CRE, ACR, BMI_CLASS, AGE_CLASS)
 
-ggplot(heavy_CRE_ACR_plot, aes(CRE, ACR)) + 
-  geom_point() + geom_smooth() + 
+ggplot(heavy_CRE_ACR_plot, aes(CRE, ACR, colour = BMI_CLASS, shape=AGE_CLASS)) + 
+  geom_point()+ 
    ggtitle('重度下降组_CRE与ACR')
 ```
 
 
-* 肾衰竭
+### 肾衰竭
 
-    + CysC与ACR
+#### CysC与ACR
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 end_data <- Data %>% 
   filter(GFR_CLASS == '肾衰竭')
 
 end_CysC_ACR_plot <- end_data %>% 
-  select(CysC, ACR)
+  select(CysC, ACR, BMI_CLASS, AGE_CLASS)
 
-ggplot(end_CysC_ACR_plot, aes(CysC, ACR)) + 
-  geom_point() + geom_smooth() + 
+ggplot(end_CysC_ACR_plot, aes(CysC, ACR, colour = BMI_CLASS, shape=AGE_CLASS)) + 
+  geom_point()  + #+ geom_smooth()
    ggtitle('肾衰竭组_CysC与ACR')
 ```
 
-   + UREA与ACR
+#### UREA与ACR
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 
 end_UREA_ACR_plot <- end_data %>% 
-  select(UREA, ACR)
+  select(UREA, ACR, BMI_CLASS, AGE_CLASS)
 
-ggplot(end_UREA_ACR_plot, aes(UREA, ACR)) + 
-  geom_point() + geom_smooth() + 
+ggplot(end_UREA_ACR_plot, aes(UREA, ACR, colour = BMI_CLASS, shape=AGE_CLASS)) + 
+  geom_point()+ 
    ggtitle('肾衰竭组_UREA与ACR')
 ```
 
-  + CRE与ACR
+#### CRE与ACR
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 
 end_CRE_ACR_plot <- end_data %>% 
-  select(CRE, ACR)
+  select(CRE, ACR, BMI_CLASS, AGE_CLASS)
 
-ggplot(end_CRE_ACR_plot, aes(CRE, ACR)) + 
-  geom_point() + geom_smooth() + 
+ggplot(end_CRE_ACR_plot, aes(CRE, ACR, colour = BMI_CLASS, shape=AGE_CLASS)) + 
+  geom_point()+ 
    ggtitle('肾衰竭组_CRE与ACR')
 ```
+
+
+个人感觉，CysC、UREA、CRE与GFR有明显关系，但与ACR，能确定的是部分数据有同增关系，增加年龄与BMI试图去区分ACR高，其他指标低或者反之的人群却不明显，估计没有找到合适的指标进行区分。

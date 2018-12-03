@@ -133,7 +133,7 @@ for (i in 1:nrow(index_combie1)) {
 ```
 
 
-执行wilcoxon秩和检验（也称Mann-Whitney U检验）这样一种非参数检验 。t检验假设两个样本的数据集之间的差别符合正态分布（当两个样本集都符合正态分布时，t检验效果最佳）。我们数据不符合状态分布，就用wilcoxon秩和检验。
+执行wilcoxon秩和检验（也称Mann-Whitney U检验）这样一种非参数检验 。t检验假设两个样本的数据集之间的差别符合正态分布（当两个样本集都符合正态分布时，t检验效果最佳）。我们数据不符合状态分布，就用wilcoxon秩和检验。后面标题沿用T检验。
 
 
 
@@ -366,7 +366,7 @@ groupby1num <- group123 %>%
   kable(groupby1num, caption = '各组人数分布')
 ```
 
-有糖化血红蛋白指标的人较少，不能支撑分析
+有糖化血红蛋白指标的人较少，不建议做分析
 
 ## 第四组
 
@@ -376,8 +376,9 @@ group124 <- Data %>%
   filter(ALT < 80, AST < 80) %>% 
   mutate(
     TB_CLASS = case_when(
-    TB >= 20           ~ "B组",
+    TB >= 20            ~ "B组",
     TB >= 3.14 & TB <20 ~ "A组",
+    TB < 3.14           ~ "C组",
     TRUE                ~ "未知"),
     gender_CLASS = case_when(
     gender == '男'           ~ 1,
@@ -400,6 +401,8 @@ groupby1num <- group124 %>%
 
   kable(groupby1num, caption = '各组人数分布')
 ```
+
+因为有小于< 3.14人群，所以设置了C组。
 
 ```{r, echo=FALSE}
 
@@ -576,4 +579,361 @@ kable(IDBILdata, caption = 'IDBIL 各组T检验', digits = 4)
 ```
 
 
+## 第五组
+
+```{r, echo=FALSE}
+
+group125 <- Data %>%
+  filter(ALT < 80, AST < 80) %>% 
+filter(is.na(HGB) != TRUE) %>% 
+  mutate(
+    HGB_CLASS = case_when(
+    HGB >= 30            ~ "B组",
+    HGB < 30             ~ "A组",
+    TRUE                ~ "未知"),
+    gender_CLASS = case_when(
+    gender == '男'           ~ 1,
+    gender == '女'           ~ 0)
+  ) %>% 
+  filter(
+    is.na(gender) != TRUE,
+    is.na(age) != TRUE,
+    is.na(courseofdiabetes) != TRUE,
+    is.na(bmi) != TRUE,
+    is.na(GFR) != TRUE,
+    is.na(CysC) != TRUE,
+    is.na(RBP) != TRUE,
+    is.na(CRE) != TRUE) %>% 
+  select(gender, age, courseofdiabetes, bmi, GFR, CysC, RBP, CRE, HGB_CLASS, gender_CLASS, IDBIL)
+
+groupby1num <- group125 %>% 
+  group_by(HGB_CLASS) %>% 
+  summarise(num = n())
+
+  kable(groupby1num, caption = '各组人数分布')
+```
+
+人群血白蛋白都是大于30的，需要重新分组.
+
+## 第六组
+
+```{r, echo=FALSE}
+
+group126 <- Data %>%
+  filter(is.na(UA) != TRUE) %>% 
+  mutate(
+    UA_CLASS = case_when(
+    UA >= 360            ~ "B组",
+    UA < 360             ~ "A组",
+    TRUE                ~ "未知"),
+    gender_CLASS = case_when(
+    gender == '男'           ~ 1,
+    gender == '女'           ~ 0)
+  ) %>% 
+  filter(
+    is.na(gender) != TRUE,
+    is.na(age) != TRUE,
+    is.na(courseofdiabetes) != TRUE,
+    is.na(bmi) != TRUE,
+    is.na(GFR) != TRUE,
+    is.na(CysC) != TRUE,
+    is.na(RBP) != TRUE,
+    is.na(CRE) != TRUE,
+    is.na(ALT) != TRUE,
+    is.na(AST) != TRUE,
+    is.na(MTP24H) != TRUE,
+    is.na(GLU) != TRUE,
+    is.na(TC) != TRUE,
+    is.na(TG) != TRUE,
+    is.na(LDLC) != TRUE,
+    is.na(HDLC) != TRUE
+    ) %>% 
+  select(gender, age, courseofdiabetes, bmi, GFR, CysC, RBP, CRE, UA_CLASS, gender_CLASS, ALT, AST, MTP24H, GLU, TC, TG, LDLC, HDLC)
+
+groupby1num <- group126 %>% 
+  group_by(UA_CLASS) %>% 
+  summarise(num = n())
+
+  kable(groupby1num, caption = '各组人数分布')
+```
+
+```{r, echo=FALSE}
+
+groupby1mean <- group126 %>% 
+  group_by(UA_CLASS) %>% 
+  summarise(
+    gender_CLASS_mean = mean(gender_CLASS), 
+    age_mean = mean(age), 
+    courseofdiabetes_mean = mean(courseofdiabetes), 
+    bmi_mean = mean(bmi),
+    GFR_mean = mean(GFR),
+    CysC_mean = mean(CysC),
+    RBP_mean = mean(RBP),
+    CRE_mean = mean(CRE),
+    ALT_mean = mean(ALT),
+    AST_mean = mean(AST),
+    MTP24H_mean = mean(MTP24H),
+    GLU_mean = mean(GLU),
+    TC_mean = mean(TC),
+    TG_mean = mean(TG),
+    LDLC_mean = mean(LDLC),
+    HDLC_mean = mean(HDLC)
+    
+    ) %>% 
+  ungroup()
+
+  kable(groupby1mean, caption = '各组指标均值', longtable = TRUE)
+```
+
+```{r, include=FALSE}
+
+TT.test <- function(DaTa, group1, group2, Col){
+  Group1 <- DaTa %>% filter(UA_CLASS == group1) %>% as.data.frame(.) %>% .[, quo_name(Col)]
+  Group2 <- DaTa %>% filter(UA_CLASS == group2) %>% as.data.frame(.) %>% .[, quo_name(Col)]
+  data.frame(class1 = group1,
+             class2 = group2,
+             Col = Col,
+             pvalue = wilcox.test(Group1, Group2)$p.value, 
+             row.names = NULL)
+
+}
+
+Y_CLASS_name <- group126 %>% distinct( UA_CLASS) %>% mutate(num = 1)
+group12 <- Y_CLASS_name %>% 
+  left_join(Y_CLASS_name,  by = c("num")) %>% 
+  filter(UA_CLASS.x != UA_CLASS.y)
+select_name <- tibble(
+  name = c('age', 'courseofdiabetes', 'bmi', 'GFR', 'CysC', 'RBP', 'CRE', 'gender_CLASS', 'ALT', 'AST', 'MTP24H', 'GLU', 'TC', 'TG', 'LDLC', 'HDLC'), 
+  num=1)
+
+index_combie1 <- group12 %>% left_join(select_name, by = c("num"))
+
+newdata1 <- data.frame()
+for (i in 1:nrow(index_combie1)) {
+  TTTest <- TT.test(DaTa = group126, 
+                  group1 = as.character(index_combie1[i, 'UA_CLASS.x']), 
+                  group2 = as.character(index_combie1[i, 'UA_CLASS.y']), 
+                  Col = as.character(index_combie1[i, 'name']))
+  newdata1 <- rbind(newdata1, TTTest)
+}
+```
+
+```{r, echo=FALSE}
+
+#age T.test
+agedata <- newdata1 %>%
+  filter(Col == 'age') %>% 
+  mutate(class1 = as.character(class1),
+         class2 = as.character(class2),
+         pvalue = pvalue) %>%
+  select(-Col) %>% 
+  spread(class2, pvalue)
+kable(agedata, caption = 'age 各组T检验', digits = 4)
+```
+
+
+
+```{r, echo=FALSE}
+
+#courseofdiabetes T.test
+courseofdiabetesdata <- newdata1 %>%
+  filter(Col == 'courseofdiabetes') %>% 
+  mutate(class1 = as.character(class1),
+         class2 = as.character(class2),
+         pvalue = pvalue) %>%
+  select(-Col) %>% 
+  spread(class2, pvalue)
+kable(courseofdiabetesdata, caption = 'courseofdiabetes 各组T检验', digits = 4)
+```
+
+
+
+```{r, echo=FALSE}
+
+#bmi T.test
+bmidata <- newdata1 %>%
+  filter(Col == 'bmi') %>% 
+  mutate(class1 = as.character(class1),
+         class2 = as.character(class2),
+         pvalue = pvalue) %>%
+  select(-Col) %>% 
+  spread(class2, pvalue)
+kable(bmidata, caption = 'bmi 各组T检验', digits = 4)
+```
+
+
+
+```{r, echo=FALSE}
+
+#GFR T.test
+GFRdata <- newdata1 %>%
+  filter(Col == 'GFR') %>% 
+  mutate(class1 = as.character(class1),
+         class2 = as.character(class2),
+         pvalue = pvalue) %>%
+  select(-Col) %>% 
+  spread(class2, pvalue)
+kable(GFRdata, caption = 'GFR 各组T检验', digits = 4)
+```
+
+```{r, echo=FALSE}
+
+#CysC T.test   'CysC', 'RBP', 'CRE', 'gender_CLASS', 'IDBIL'
+CysCdata <- newdata1 %>%
+  filter(Col == 'CysC') %>% 
+  mutate(class1 = as.character(class1),
+         class2 = as.character(class2),
+         pvalue = pvalue) %>%
+  select(-Col) %>% 
+  spread(class2, pvalue)
+kable(CysCdata, caption = 'CysC 各组T检验', digits = 4)
+```
+
+```{r, echo=FALSE}
+
+#RBP T.test   'CysC', 'RBP', 'CRE', 'gender_CLASS', 'IDBIL'
+RBPdata <- newdata1 %>%
+  filter(Col == 'RBP') %>% 
+  mutate(class1 = as.character(class1),
+         class2 = as.character(class2),
+         pvalue = pvalue) %>%
+  select(-Col) %>% 
+  spread(class2, pvalue)
+kable(RBPdata, caption = 'RBP 各组T检验', digits = 4)
+```
+
+```{r, echo=FALSE}
+
+#CRE T.test   'CysC', 'RBP', 'CRE', 'gender_CLASS', 'IDBIL'
+CREdata <- newdata1 %>%
+  filter(Col == 'CRE') %>% 
+  mutate(class1 = as.character(class1),
+         class2 = as.character(class2),
+         pvalue = pvalue) %>%
+  select(-Col) %>% 
+  spread(class2, pvalue)
+kable(CREdata, caption = 'CRE 各组T检验', digits = 4)
+```
+
+```{r, echo=FALSE}
+
+#gender_CLASS T.test   'CysC', 'RBP', 'CRE', 'gender_CLASS', 'IDBIL'
+gender_CLASSdata <- newdata1 %>%
+  filter(Col == 'gender_CLASS') %>% 
+  mutate(class1 = as.character(class1),
+         class2 = as.character(class2),
+         pvalue = pvalue) %>%
+  select(-Col) %>% 
+  spread(class2, pvalue)
+kable(gender_CLASSdata, caption = 'gender_CLASS 各组T检验', digits = 4)
+```
+
+```{r, echo=FALSE}
+
+#ALT T.test   'CysC', 'RBP', 'CRE', 'gender_CLASS', 'IDBIL'
+ALTdata <- newdata1 %>%
+  filter(Col == 'ALT') %>% 
+  mutate(class1 = as.character(class1),
+         class2 = as.character(class2),
+         pvalue = pvalue) %>%
+  select(-Col) %>% 
+  spread(class2, pvalue)
+kable(ALTdata, caption = 'ALT 各组T检验', digits = 4)
+```
+
+
+
+
+
+
+```{r, echo=FALSE}
+
+#ALT T.test   'CysC', 'RBP', 'CRE', 'gender_CLASS', 'IDBIL'
+ALTdata <- newdata1 %>%
+  filter(Col == 'AST') %>% 
+  mutate(class1 = as.character(class1),
+         class2 = as.character(class2),
+         pvalue = pvalue) %>%
+  select(-Col) %>% 
+  spread(class2, pvalue)
+kable(ALTdata, caption = 'AST 各组T检验', digits = 4)
+```
+
+```{r, echo=FALSE}
+
+#ALT T.test   'CysC', 'RBP', 'CRE', 'gender_CLASS', 'IDBIL'
+ALTdata <- newdata1 %>%
+  filter(Col == 'MTP24H') %>% 
+  mutate(class1 = as.character(class1),
+         class2 = as.character(class2),
+         pvalue = pvalue) %>%
+  select(-Col) %>% 
+  spread(class2, pvalue)
+kable(ALTdata, caption = 'MTP24H 各组T检验', digits = 4)
+```
+
+```{r, echo=FALSE}
+
+#ALT T.test   'CysC', 'RBP', 'CRE', 'gender_CLASS', 'IDBIL'
+ALTdata <- newdata1 %>%
+  filter(Col == 'GLU') %>% 
+  mutate(class1 = as.character(class1),
+         class2 = as.character(class2),
+         pvalue = pvalue) %>%
+  select(-Col) %>% 
+  spread(class2, pvalue)
+kable(ALTdata, caption = 'GLU 各组T检验', digits = 4)
+```
+
+```{r, echo=FALSE}
+
+#ALT T.test   'CysC', 'RBP', 'CRE', 'gender_CLASS', 'IDBIL'
+ALTdata <- newdata1 %>%
+  filter(Col == 'TC') %>% 
+  mutate(class1 = as.character(class1),
+         class2 = as.character(class2),
+         pvalue = pvalue) %>%
+  select(-Col) %>% 
+  spread(class2, pvalue)
+kable(ALTdata, caption = 'TC 各组T检验', digits = 4)
+```
+
+```{r, echo=FALSE}
+
+#ALT T.test   'CysC', 'RBP', 'CRE', 'gender_CLASS', 'IDBIL'
+ALTdata <- newdata1 %>%
+  filter(Col == 'TG') %>% 
+  mutate(class1 = as.character(class1),
+         class2 = as.character(class2),
+         pvalue = pvalue) %>%
+  select(-Col) %>% 
+  spread(class2, pvalue)
+kable(ALTdata, caption = 'TG 各组T检验', digits = 4)
+```
+
+```{r, echo=FALSE}
+
+#ALT T.test   'CysC', 'RBP', 'CRE', 'gender_CLASS', 'IDBIL'
+ALTdata <- newdata1 %>%
+  filter(Col == 'LDLC') %>% 
+  mutate(class1 = as.character(class1),
+         class2 = as.character(class2),
+         pvalue = pvalue) %>%
+  select(-Col) %>% 
+  spread(class2, pvalue)
+kable(ALTdata, caption = 'LDLC 各组T检验', digits = 4)
+```
+
+```{r, echo=FALSE}
+
+#ALT T.test   'CysC', 'RBP', 'CRE', 'gender_CLASS', 'IDBIL'
+ALTdata <- newdata1 %>%
+  filter(Col == 'HDLC') %>% 
+  mutate(class1 = as.character(class1),
+         class2 = as.character(class2),
+         pvalue = pvalue) %>%
+  select(-Col) %>% 
+  spread(class2, pvalue)
+kable(ALTdata, caption = 'HDLC 各组T检验', digits = 4)
+```
 
